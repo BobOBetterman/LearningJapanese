@@ -109,7 +109,7 @@ checkEntry <- function(japText, engText) {
     
     tkgrid(tklabel(tBox, text = "               Just to be sure...               ", font = normalFont), columnspan = 2)
     tkgrid(tklabel(tBox, text = "Is this correct?", font = normalFont), columnspan = 2)
-    tkgrid(tklabel(tBox, text = paste(japText, "     :     ", engText), font = checkFont), columnspan = 2)
+    tkgrid(tklabel(tBox, text = paste(japText, "     <----->     ", engText), font = checkFont), columnspan = 2)
     tkgrid(tklabel(tBox, text = ""), columnspan = 2)
     
     finalCheck <- 0
@@ -163,14 +163,78 @@ addData <- function() {
 
             if(finFlag == 0) {exitProgram()}
             else {
-                fileCon <- file("data/japDict.txt", open = "at")
+
+# Use this block of code, along with the bit below under "mode == 1", to revert back to the text file format                
+#                fileCon <- file("data/japDict.txt", open = "at")
         
-                writeLines(paste(japText, engText), fileCon, useBytes = TRUE)
+#                writeLines(paste(japText, engText), fileCon, useBytes = TRUE)
         
-                close(fileCon)
+#                close(fileCon)
+                
+                newEntry <- data.frame(Japanese.Text = japText, English.Text = engText, stringsAsFactors = FALSE)
+                
+                if(file.exists("data/japDict.rds")) {
+                    japDict <- readRDS("data/japDict.rds")
+                    japDict <- rbind(japDict, newEntry)
+                } else {
+                    japDict <- newEntry
+                }
+                
+                saveRDS(japDict, "data/japDict.rds")
             }
         }
     }
+}
+
+quiz <- function(queNum, japTerm, returnValonCancel) {
+    tBox <- tktoplevel()
+    tkwm.deiconify(tBox)
+    tkgrab.set(tBox)
+    tkfocus(tBox)
+    
+    normalFont <- tkfont.create(family="times",size=20)
+    
+    tkwm.title(tBox, paste("Quiz Question Number", queNum))
+    
+    entryVal <- ""
+    
+    textEntryVarTcl <- tclVar(entryVal)
+    textEntryWidget <- tkentry(tBox, width = 35, textvariable = textEntryVarTcl, font = normalFont)
+    
+    tkgrid(tklabel(tBox, text = "What is the English term for this Japanese term?"))
+    tkgrid(tklabel(tBox, text = ""))
+    tkgrid(tklabel(tBox, text = "     "), tklabel(tBox, text = paste(japTerm, "<-----> "), font = normalFont), textEntryWidget, tklabel(tBox, text = "     "))
+    tkgrid(tklabel(tBox, text = ""))
+    
+    ReturnVal <- returnValonCancel
+    
+    onOK <- function() {
+        ReturnVal <<- tclvalue(textEntryVarTcl)
+        tkgrab.release(tBox)
+        tkdestroy(tBox)
+    }
+    
+    onCancel <- function() {
+        ReturnVal <<- returnValonCancel
+        tkgrab.release(tBox)
+        tkdestroy(tBox)
+    }
+    
+    OK.but <- tkbutton(tBox, text = "    Ok    ", command = onOK, font = normalFont)
+    Cancel.but <- tkbutton(tBox, text = "  Cancel  ", command = onCancel, font = normalFont)
+    
+    tkgrid(tklabel(tBox, text = "     "), OK.but, Cancel.but, tklabel(tBox, text = "     "))
+    tkgrid(tklabel(tBox, text = ""))
+    
+    tkfocus(tBox)
+    
+    tkbind(tBox, "<Destroy>", function() {tkgrab.release(tBox)})
+    
+    tkbind(textEntryWidget, "<Return>", onOK)
+    
+    tkwait.window(tBox)
+    
+    return(ReturnVal)
 }
 
 mode <- modeSelect()
@@ -182,7 +246,40 @@ if(mode == 0) {
 }
 
 if(mode == 1) {
-    fileCon <- file("data/japDict.txt", open = "rt")
-    japDict <- readLines(fileCon, encoding = "UTF-8")
-    close(fileCon)
+
+# Use this block of code, along with the block above at the end of "addData()", to revert to the text file format    
+#    fileCon <- file("data/japDict.txt", open = "rt")
+#    japDict <- readLines(fileCon, encoding = "UTF-8")
+#    close(fileCon)
+    
+    if(file.exists("data/japDict.rds")) {
+        japDict <- readRDS("data/japDict.rds")
+    } else {
+        japDict <- data.frame(Japanese.Test = NULL, English.Text = NULL, stringsAsFactors = FALSE)
+    }
+    
+    maxTimes <- sample(1:250, 1)
+    i <- 1
+    
+    while (i < maxTimes) {
+        rowNum <- sample(nrow(japDict), 1)
+        
+        answer <- quiz(i, japDict[rowNum, 1], maxTimes)
+        
+        if(!is.numeric(answer)) {
+            correct <- answer == japDict[rowNum, 2]
+            
+            if(correct) {
+                tkmessageBox(message = paste("That's right!       ", japDict[rowNum, 1], "<----->", japDict[rowNum, 2]), title = "Good Job!")
+            } else {
+                tkmessageBox(message = paste("What you say?!       ", japDict[rowNum, 1], "<----->", japDict[rowNum, 2]), title = "Make Your Time")
+            }
+        } else {
+            i <- maxTimes
+        }
+        
+        i <- i + 1
+    }
+    
+    exitProgram()
 }
